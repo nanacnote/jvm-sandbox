@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pending - Rule base mapping engine</title>
+    <link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/css/bootstrap.min.css"
+          integrity="sha384-gH2yIJqKdNHPEq0n4Mqa/HGKIhSkIHeL5AyhkYV8i59U5AR6csBvApHHNl/vI1Bx" rel="stylesheet">
+    <script crossorigin="anonymous"
+            integrity="sha384-A3rJD856KowSb7dwlZdYEkO39Gagi7vIsF0jrRAoQmDKKtQBHUuLZ9AsSv4jD4Xa"
+            src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        input[disabled] {pointer-events:none}
+    </style>
+</head>
+<body>
+<div>
+    <nav class="navbar navbar-expand-lg bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/ui">RBME</a>
+            <button aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation"
+                    class="navbar-toggler" data-bs-target="#navbarSupportedContent"
+                    data-bs-toggle="collapse" type="button">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a aria-current="page" class="nav-link" href="/ui/upload">Upload File</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/ui/pending">Pending Files</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/ui/complete">Completed Files</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div>
+        <div class="row align-items-start p-2 mt-4 mb-4">
+            <div class="col mb-2">
+                <div class="list-group" id="pending-list-items-container"></div>
+            </div>
+            <div class="col-sm-9 mb-2" id="pending-selected-list-item-container"></div>
+        </div>
+    </div>
+</div>
+<script>
+    function handleGenerateFormEntry(id, entry) {
+        return `<form class="border p-4 mb-4" data-form-entry="form-entry" data-id="${id}">
+<div class="row">
+    <div class="col-sm-10">
+        <div class="row">
+            <div class="col">
+                <div class="form-group mb-2">
+                    <label for="field-name-${entry["fieldName"]}" class="sr-only text-muted">Field Name</label>
+                    <input type="text" readonly class="form-control-plaintext" id="field-name-${entry["fieldName"]}" value="${entry["fieldName"]}">
+                </div>
+            </div>
+            <div class="col">
+                <div class="form-group mb-2" data-input-map-to="map-to" data-field-name="${entry["fieldName"]}">
+                    <label for="map-to-${entry["fieldName"]}" class="sr-only text-muted">Maps To</label>
+                    <input type="text" class="form-control" id="map-to-${entry["fieldName"]}" value="${entry["mapTo"] || ""}" disabled data-input-map-to="map-to" data-field-name="${entry["fieldName"]}">
+                </div>
+            </div>
+            <div class="col">
+                <div class="form-group mb-2" data-select-suggestion="select-selection" data-field-name="${entry["fieldName"]}">
+                    <label for="suggestions-${entry["fieldName"]}" class="sr-only text-muted">Suggestions</label>
+                    <select id="suggestions-${entry["fieldName"]}" class="form-control" disabled data-select-suggestion="select-selection" data-field-name="${entry["fieldName"]}">
+<!--                        <option ${entry['mapTo'] ? '' : "selected"} value disabled>&#45;&#45; click twice to open &#45;&#45;</option>-->
+                        <option ${entry['mapTo'] ? '' : "selected"} value disabled></option>
+                        ${entry['suggestions'].map(s => "<option value='" + s + "' selected=" + (entry['mapTo'] === s) + ">" + s + "</option>").join('')}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="form-group mb-2">
+            <label for="submit-btn-${entry["fieldName"]}" class="sr-only">&nbsp;</label>
+            <input id="submit-btn-${entry["fieldName"]}" type="submit" class="form-control btn btn-primary" value="Submit" disabled data-field-name="${entry["fieldName"]}">
+        </div>
+    </div>
+</div>
+</form>`
+    }
+
+    function handleEnableMapToInput(e) {
+        const onTrigger = (e) => {
+            const value = e.currentTarget.value
+            const submitBtn = document.getElementById(`submit-btn-${fieldName}`)
+            const suggestionsSelectInput = document.getElementById(`suggestions-${fieldName}`)
+            const suggestionsOptions = suggestionsSelectInput.getElementsByTagName("option")
+            if (value.length > 0) {
+                submitBtn.disabled = false
+                for (let i = 0; i < suggestionsOptions.length; i++) {
+                    const opt = suggestionsOptions[i]
+                    if (opt.value === value || opt.innerText === value) {
+                        opt.selected = true
+                    } else {
+                        opt.selected = false
+                        suggestionsOptions[0].selected = true
+                    }
+                }
+            } else {
+                submitBtn.disabled = true
+            }
+            if(e.type === "blur"){
+                input.disabled = true
+            }
+        }
+        const fieldName = e.currentTarget.dataset.fieldName
+        const input = document.getElementById(`map-to-${fieldName}`)
+        input.disabled = false
+        input.value = ""
+        input.oninput = onTrigger
+        input.onblur = onTrigger
+        input.focus()
+    }
+
+    function handleEnableSuggestionInput(e) {
+        const onTrigger = (e) => {
+            const selection = e.currentTarget
+            const value = selection.options[selection.selectedIndex].value
+            const submitBtn = document.getElementById(`submit-btn-${fieldName}`)
+            if (value) {
+                const mapToInput = document.getElementById(`map-to-${fieldName}`)
+                mapToInput.value = value
+                submitBtn.disabled = false
+            } else {
+                submitBtn.disabled = true
+            }
+            if(e.type === "blur"){
+                selection.disabled = true
+            }
+        }
+        const fieldName = e.currentTarget.dataset.fieldName
+        const selection = document.getElementById(`suggestions-${fieldName}`)
+        selection.disabled = false
+        selection.onblur = onTrigger
+        selection.onchange = onTrigger
+        selection.focus()
+    }
+
+    function handleAddEventListenersToFormEntry() {
+        document.querySelectorAll("[data-form-entry='form-entry']").forEach(elem => elem.onsubmit = handleFormEntrySubmission)
+        document.querySelectorAll("[data-input-map-to='map-to']").forEach(elem => elem.onclick = handleEnableMapToInput)
+        document.querySelectorAll("[data-select-suggestion='select-selection']").forEach(elem => elem.onclick = handleEnableSuggestionInput)
+    }
+
+    function handlePendingListItemClick(e) {
+        const elem = e.currentTarget
+        document.querySelectorAll(".pending-list-item").forEach(e => e.classList.remove("active"))
+        elem.classList.add("active")
+        elem.ariaCurrent = "true"
+        handleDataLoadById(elem.dataset.id)
+    }
+
+    function handlePendingListItemCreation(items) {
+        const container = document.getElementById("pending-list-items-container")
+        for (const item of items.filter(i => !i.complete)) {
+            const btn = document.createElement("button")
+            btn.classList.add("list-group-item", "list-group-item-action", "pending-list-item")
+            btn.type = "button"
+            btn.dataset.id = item.id
+            btn.innerText = item.id
+            btn.onclick = handlePendingListItemClick
+            container.append(btn)
+            if (window.location.hash && window.location.hash.substring(1) === String(item.id)) {
+                btn.click()
+            }
+        }
+    }
+
+    function handleSelectedListItemCreation(item) {
+        if(item["complete"]){
+            location.href = `/ui/complete#${item["id"]}`
+        }
+        const container = document.getElementById("pending-selected-list-item-container")
+        let list = []
+        for (const entry of item['feedbackFieldNames']) {
+            const entryMap = {isMapped: !!entry["mapTo"], entry}
+            list.push(entryMap)
+        }
+        container.innerHTML = list.sort((x, y) => x.isMapped - y.isMapped).map(e => handleGenerateFormEntry(item["id"], e.entry)).join("")
+        handleAddEventListenersToFormEntry()
+    }
+
+    function handleFormEntrySubmission(e) {
+        e.preventDefault()
+        const form = e.target
+        const [fieldName, mapTo] = form
+        if(fieldName.value && mapTo.value){
+            fetch(`http://localhost:8080/api/submission`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                method: "PUT",
+                body: JSON.stringify({
+                    id: form.dataset.id,
+                    updateRule: true,
+                    instructions: [{fieldName: fieldName.value, mapTo: mapTo.value}]
+                })
+            })
+                .then(res => res.json())
+                .then(handleSelectedListItemCreation)
+                .catch((res) => {
+                    console.log(res)
+                })
+        }
+    }
+
+    function handleDataLoadById(id) {
+        fetch(`http://localhost:8080/api/submission`, {
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            method: "PUT",
+            body: JSON.stringify({id, updateRule: false, instructions: []})
+        })
+            .then(res => res.json())
+            .then(handleSelectedListItemCreation)
+            .catch((res) => {
+                console.log(res)
+            })
+    }
+
+    function handleInitialDataLoad() {
+        fetch("http://localhost:8080/api/submission", {
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            method: "GET",
+        })
+            .then((res) => res.json())
+            .then(handlePendingListItemCreation)
+            .catch((res) => {
+                console.log(res)
+            })
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        handleInitialDataLoad()
+    });
+</script>
+</body>
+</html>
